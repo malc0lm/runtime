@@ -6,9 +6,11 @@
 package hyperstart
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net"
 	"sync"
@@ -330,15 +332,19 @@ func (h *Hyperstart) WriteCtlMessage(conn net.Conn, m *DecodedMessage) error {
 	// XXX: Support sending messages by chunks to support messages over
 	// 10240 bytes. That limit is from hyperstart src/init.c,
 	// hyper_channel_ops, rbuf_size.
-	if length > 10240 {
-		return fmt.Errorf("message too long %d", length)
-	}
+	// if length > 10240 {
+	// 	return fmt.Errorf("message too long %d", length)
+	// }
 	msg := make([]byte, length)
 	binary.BigEndian.PutUint32(msg[:], m.Code)
 	binary.BigEndian.PutUint32(msg[CtlHdrLenOffset:], uint32(length))
 	copy(msg[CtlHdrSize:], m.Message)
 
-	_, err := conn.Write(msg)
+	msgReader := bytes.NewReader(msg)
+	chunk := make([]byte, 1024)
+
+	_, err := io.CopyBuffer(conn, msgReader, chunk)
+	// _, err := conn.Write(msg)
 	if err != nil {
 		return err
 	}
@@ -391,15 +397,19 @@ func SendIoMessageWithConn(conn net.Conn, ttyMsg *TtyMessage) error {
 	// XXX: Support sending messages by chunks to support messages over
 	// 10240 bytes. That limit is from hyperstart src/init.c,
 	// hyper_channel_ops, rbuf_size.
-	if length > 10240 {
-		return fmt.Errorf("message too long %d", length)
-	}
+	// if length > 10240 {
+	// 	return fmt.Errorf("message too long %d", length)
+	// }
 	msg := make([]byte, length)
 	binary.BigEndian.PutUint64(msg[:], ttyMsg.Session)
 	binary.BigEndian.PutUint32(msg[TtyHdrLenOffset:], uint32(length))
 	copy(msg[TtyHdrSize:], ttyMsg.Message)
 
-	n, err := conn.Write(msg)
+	msgReader := bytes.NewReader(msg)
+	chunk := make([]byte, 1024)
+
+	n, err := io.CopyBuffer(conn, msgReader, chunk)
+	// n, err := conn.Write(msg)
 	if err != nil {
 		return err
 	}
